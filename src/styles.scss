@@ -1,0 +1,14 @@
+/* theme color */
+
+/* icon font path, required */
+$--font-path: '~element-ui/lib/theme-chalk/fonts';
+
+$--font-path: 'fonts' !default;
+$--font-size-base: 11px !default;
+$--font-size-small: 10px !default;
+$--font-size-large: 13px !default;
+$--font-color-disabled-base: #bbb !default;
+$--font-weight-primary: 500 !default;
+$--font-line-height-primary: 24px !default;
+
+@import "~element-ui/packages/theme-chalk/src/index";
