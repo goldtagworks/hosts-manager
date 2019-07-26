@@ -1,6 +1,6 @@
 import Vue from 'vue';
-import fs from 'fs';
 import os from 'os';
+import fs from 'fs';
 import axios from 'axios';
 import iconv from 'iconv-lite';
 import { remote } from 'electron';

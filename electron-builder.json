@@ -1,0 +1,38 @@
+{
+    "productName": "MelonHostsManager",
+    "appId": "com.kakao.melon.hosts-manager",
+    "copyright": "Copyright ⓒ Kakao Corp. All rights reserved.",
+    "win": {
+        "icon": "build/hosts.ico",
+        "certificateFile": "build/www.kakao.com.pfx",
+        "certificatePassword": "iwilab$7"
+    },
+    "nsis": {
+        "artifactName": "MelonHostsManager-Setup.${ext}",
+        "oneClick": false,
+        "perMachine": true,
+        "allowElevation": true,
+        "allowToChangeInstallationDirectory": true,
+        "installerIcon": "build/hosts.ico",
+        "installerHeaderIcon": "build/hosts.ico",
+        "installerSidebar": "build/orange.bmp",
+        "uninstallDisplayName": "멜론 Hosts Manager",
+        "uninstallerIcon": "build/hosts.ico",
+        "uninstallerSidebar": "build/orange-uninstall.bmp",
+        "installerLanguages": "ko-KR",
+        "language": "1042",
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "멜론 Hosts Manager"        
+    },
+    "mac": {
+        "icon": "build/hosts.icns",
+        "category": "public.app-category.developer-tools",
+        "darkModeSupport": true
+    },
+    "dmg": {
+        "artifactName": "MelonHostsManager-Setup.${ext}",
+        "title": "멜론 Hosts Manager",
+        "icon": "build/hosts.icns"
+    }    
+}

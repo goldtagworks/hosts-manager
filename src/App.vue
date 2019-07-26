@@ -115,10 +115,11 @@
 </template>
 
 <script lang="ts">
-import AppBase from '@/AppBase';
-import { Vue, Component } from 'vue-property-decorator';
 import { remote } from 'electron';
+import { Vue, Component } from 'vue-property-decorator';
+import AppBase from '@/AppBase';
 
+import mousetrap from 'mousetrap';
 import editor from 'vue2-ace-editor';
 import 'brace/mode/ini';
 import 'brace/theme/dracula';
@@ -146,6 +147,14 @@ export default class App extends AppBase {
     public onMainEditorInit(editor: any): void {
         this.mainEditor = editor;
 
+        editor.commands.addCommand({
+            name: 'save',
+            bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
+            exec: (editor: any) => {
+                this.onClickedSave();
+            }
+        });
+
         editor.setShowPrintMargin(false);
         editor.focus();
     }
@@ -153,8 +162,24 @@ export default class App extends AppBase {
     public onSubEditorInit(editor: any): void {
         this.subEditor = editor;
 
+        editor.commands.addCommand({
+            name: 'save',
+            bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
+            exec: (editor: any) => {
+                this.onClickedCommonHostsSave();
+            }
+        });
+
         editor.setShowPrintMargin(false);
         editor.focus();
+    }
+
+    public created(): void {
+        mousetrap.bind(['command+s', 'ctrl+s'], () => {
+            this.onClickedSave();
+
+            return false;
+        });
     }
 
     public mounted(): void {
