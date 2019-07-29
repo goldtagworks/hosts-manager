@@ -1,15 +1,16 @@
 'use strict';
 
-import { app, protocol, BrowserWindow, globalShortcut } from 'electron';
+import { app, protocol, BrowserWindow } from 'electron';
 import {
     createProtocol,
     installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 const isDevelopment = process.env.NODE_ENV !== 'production';
+import path from 'path';
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let win: BrowserWindow | null;
+let win: BrowserWindow | null = null;
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([

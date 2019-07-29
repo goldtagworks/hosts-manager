@@ -180,6 +180,7 @@ export default class App extends AppBase {
 
             return false;
         });
+        this.createTray();
     }
 
     public mounted(): void {

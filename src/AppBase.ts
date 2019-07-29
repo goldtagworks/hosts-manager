@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import os from 'os';
 import fs from 'fs';
+import path from 'path';
 import axios from 'axios';
 import iconv from 'iconv-lite';
 import { remote } from 'electron';
@@ -16,6 +17,41 @@ export default class AppBase extends Vue {
     public listFilename: string = 'serverinfo.txt';
     public commonFilename: string = '%EA%B3%B5%ED%86%B5.txt';
     public lCommonFilename: string = 'local_common.txt';
+    public tray: Electron.Tray | null = null;
+
+    public createTray() {
+        const trayIcon = remote.nativeImage.createFromPath(
+            path.join(__dirname, '/hosts.png')
+        );
+        this.tray = new remote.Tray(trayIcon.resize({ width: 16, height: 16 }));
+
+        const trayMenuTemplate = [
+            {
+                label: 'Empty Application',
+                enabled: false
+            },
+            {
+                label: 'Settings',
+                click: function() {
+                    console.log('Clicked on settings');
+                }
+            },
+            {
+                label: 'Help',
+                click: function() {
+                    console.log('Clicked on Help');
+                }
+            }
+        ];
+        let trayMenu = remote.Menu.buildFromTemplate(trayMenuTemplate);
+        this.tray.setContextMenu(trayMenu);
+    }
+
+    public destroyTray(): void {
+        if (this.tray != null) {
+            this.tray.destroy();
+        }
+    }
 
     public successNotify(msg: string): void {
         this.$notify({
