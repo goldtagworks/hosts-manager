@@ -2,47 +2,84 @@
     <el-container id="App" direction="vertical">
         <el-container direction="horizontal">
             <el-aside width="260px">
-                <el-menu
-                    ref="menu"
-                    :unique-opened="false"
-                    background-color="#545c64"
-                    text-color="#fff"
-                    active-text-color="#ffd04b"
+                <div class="hosts-header">
+                    <span>Server Hosts</span
+                    ><span style="width:60px; float:right;"
+                        ><el-button size="mini" @click="onClickedRefresh"
+                            >Refresh</el-button
+                        ></span
+                    >
+                </div>
+                <el-table
+                    :show-header="false"
+                    :data="listServerHosts"
+                    style="width: 100%"
                 >
-                    <el-submenu index="0" popper-class="submenu">
-                        <template slot="title">
-                            <i class="el-icon-set-up"></i>
-                            <span>Server Hosts</span>
+                    <el-table-column width="48px"> </el-table-column>
+                    <el-table-column
+                        v-for="item in headerData"
+                        :key="item.prop"
+                        :prop="item.prop"
+                        :label="item.label"
+                        :header-align="item.headerAlign"
+                        :align="item.align"
+                    >
+                        <template slot-scope="scope">
+                            <span
+                                width="194px"
+                                class="hosts-column"
+                                v-text="scope.row[item.prop]"
+                            ></span>
                         </template>
-                        <el-menu-item
-                            v-for="(filename, index) in serverHosts"
-                            :key="filename"
-                            :index="'0_' + index"
-                            v-text="filename"
-                            @click="onClickedServerHost(filename)"
-                        />
-                    </el-submenu>
-                    <!--
-                    <el-submenu index="1" popper-class="submenu">
-                        <template slot="title">
-                            <i class="el-icon-set-up"></i>
-                            <span>Local Hosts</span>
+                    </el-table-column>
+                </el-table>
+                <div class="hosts-header">
+                    <span>Common Hosts</span
+                    ><span style="width:60px; float:right;"
+                        ><el-button size="mini">Apply</el-button></span
+                    >
+                </div>
+                <el-table
+                    :show-header="false"
+                    :data="listCommonHosts"
+                    style="width: 100%"
+                    @selection-change="onSelectionChange"
+                >
+                    <el-table-column type="selection" width="48px">
+                    </el-table-column>
+                    <el-table-column
+                        v-for="item in headerData"
+                        :key="item.prop"
+                        :prop="item.prop"
+                        :label="item.label"
+                        :header-align="item.headerAlign"
+                        :align="item.align"
+                    >
+                        <template slot-scope="scope">
+                            <span
+                                width="134px"
+                                class="hosts-column"
+                                v-text="scope.row[item.prop]"
+                            ></span>
                         </template>
-                        <el-menu-item
-                            v-for="(filename, index) in localHosts"
-                            :key="filename"
-                            :index="'1_' + index"
-                            v-text="filename"
-                            @click="onClickedLocalHost(filename)"
-                        />
-                    </el-submenu>
-                    // -->
-                </el-menu>
+                    </el-table-column>
+                    <el-table-column width="60px">
+                        <template slot-scope="scope">
+                            <el-button
+                                size="mini"
+                                @click="
+                                    onClickedHostsEdit(scope.row['filename'])
+                                "
+                                >Edit</el-button
+                            >
+                        </template>
+                    </el-table-column>
+                </el-table>
             </el-aside>
             <el-container direction="vertical">
                 <el-main
                     ><editor
-                        v-model="systemHosts"
+                        v-model="txtSystemHosts"
                         @init="onMainEditorInit"
                         lang="ini"
                         theme="dracula"
@@ -51,42 +88,17 @@
                         :options="options"
                     ></editor
                 ></el-main>
-                <el-footer>
-                    <div style=" float: right;">
-                        <el-button
-                            type="primary"
-                            icon="el-icon-refresh"
-                            size="mini"
-                            @click="onShowDialog"
-                            >공통 hosts 편집</el-button
-                        >
-                        <el-button
-                            type="primary"
-                            icon="el-icon-refresh"
-                            size="mini"
-                            @click="onClickedRefreshList"
-                            >List 갱신</el-button
-                        >
-                        <el-button
-                            type="primary"
-                            icon="el-icon-edit"
-                            size="mini"
-                            @click="onClickedSave"
-                            >Hosts 저장</el-button
-                        >
-                    </div>
-                </el-footer>
             </el-container>
         </el-container>
         <el-dialog
-            title="공통 hosts 편집"
-            width="800px"
-            :visible.sync="visibleDialog"
+            :title="txtDialogTitle"
+            width="900px"
+            :visible.sync="isVisibleDialog"
             :close-on-click-modal="false"
         >
-            <div style="height:300px;">
+            <div style="height:350px;">
                 <editor
-                    v-model="commonHosts"
+                    v-model="txtCommonHosts"
                     @init="onSubEditorInit"
                     lang="ini"
                     theme="dracula"
@@ -97,13 +109,13 @@
             </div>
             <span slot="footer" class="dialog-footer">
                 <el-button
-                    size="mini"
-                    @click="visibleDialog = false"
+                    size="small"
+                    @click="isVisibleDialog = false"
                     icon="el-icon-close"
                     >닫기</el-button
                 >
                 <el-button
-                    size="mini"
+                    size="small"
                     type="primary"
                     @click="onClickedCommonHostsSave"
                     icon="el-icon-upload"
@@ -115,9 +127,9 @@
 </template>
 
 <script lang="ts">
-import { remote } from 'electron';
+import { remote, ipcRenderer } from 'electron';
 import { Vue, Component } from 'vue-property-decorator';
-import AppBase from '@/AppBase';
+import AppBase from '@/app-base';
 
 import mousetrap from 'mousetrap';
 import editor from 'vue2-ace-editor';
@@ -132,14 +144,25 @@ import { ElMenu } from 'element-ui/types/menu';
     }
 })
 export default class App extends AppBase {
-    public systemHosts: string = '';
-    public commonHosts: string = '';
+    public txtDialogTitle: string = '';
+    public txtSystemHosts: string = '';
+    public txtCommonHosts: string = '';
 
-    public serverHosts: string[] = [];
-    public localHosts: string[] = [];
+    public listServerHosts: any[] = [];
+    public listCommonHosts: any[] = [];
+    public multipleSelection: any[] = [];
     public mainEditor: any = null;
     public subEditor: any = null;
-    public visibleDialog: boolean = false;
+    public isVisibleDialog: boolean = false;
+
+    public headerData: any = [
+        {
+            prop: 'filename',
+            label: 'Server Hosts',
+            headerAlign: 'center',
+            align: 'left'
+        }
+    ];
 
     // public options: any = { fontFamily: 'tahoma', fontSize: '10pt' };
     public options: any = { fontSize: '10pt' };
@@ -177,65 +200,79 @@ export default class App extends AppBase {
     public created(): void {
         mousetrap.bind(['command+s', 'ctrl+s'], () => {
             this.onClickedSave();
-
             return false;
         });
-        this.createTray();
+
+        ipcRenderer.send('watcherHosts');
+        ipcRenderer.send('readSystemHosts');
+        ipcRenderer.send('readServerHostsList');
+        ipcRenderer.send('readCommonHostsList');
+
+        ipcRenderer.on(
+            'successNotify',
+            (event: Electron.Event, msg: string) => {
+                this.errorNotify(msg);
+            }
+        );
+
+        ipcRenderer.on('errorNotify', (event: Electron.Event, msg: string) => {
+            this.errorNotify(msg);
+        });
+
+        ipcRenderer.on('showTerminalCommand', (event: Electron.Event) => {
+            this.showTerminalCommand();
+        });
+
+        ipcRenderer.on(
+            'onReadSystemHostsComplete',
+            (event: Electron.Event, data: string) => {
+                this.txtSystemHosts = data;
+                if (this.mainEditor != null) {
+                    this.mainEditor.gotoLine(0, 0, true);
+                }
+            }
+        );
+
+        ipcRenderer.on(
+            'onReadServerHostsListComplete',
+            (event: Electron.Event, list: string[]) => {
+                this.listServerHosts = list;
+            }
+        );
+
+        ipcRenderer.on(
+            'onReadCommonHostsListComplete',
+            (event: Electron.Event, list: string[]) => {
+                this.listCommonHosts.splice(0, this.listCommonHosts.length);
+
+                for (let i = 0; i < list.length; i++) {
+                    this.listCommonHosts.push({ filename: list[i] });
+                }
+            }
+        );
     }
 
-    public mounted(): void {
-        this.watcherHosts();
-        this.readServerHostsList();
-        //this.readLocalHostsList();
-        this.readSystemHosts();
+    public onClickedServerHost(filename: string): void {}
+
+    public onClickedRefresh(): void {
+        ipcRenderer.send('readServerHostsList');
     }
 
-    public onClickedServerHost(filename: string): void {
-        this.saveServerHosts(filename);
+    public onClickedSave(): void {}
+
+    public onSelectionChange(val: any[]): void {
+        this.multipleSelection = val;
+        console.log(val);
     }
 
-    public onClickedLocalHost(filename: string): void {
-        this.saveLocalHosts(filename);
-    }
-
-    public onClickedRefreshList(): void {
-        this.readServerHostsList();
-    }
-
-    public onClickedSave(): void {
-        this.saveSystemHosts(this.systemHosts);
-    }
-
-    // /etc/hosts 읽은후
-    public onReadSystemHostsComplete(
-        err: NodeJS.ErrnoException | null,
-        data: string
-    ): void {
-        if (err == null) {
-            this.systemHosts = data;
-            this.mainEditor.gotoLine(0, 0, true);
-        }
-    }
-
-    public onReadServerHostsListComplete(list: string[]): void {
-        this.serverHosts = list;
-        (this.$refs['menu'] as ElMenu).open('0');
-    }
-
-    public onReadLocalHostsListComplete(list: string[]): void {
-        this.localHosts = list;
-        (this.$refs['menu'] as ElMenu).open('1');
-    }
-
-    public onShowDialog(): void {
-        this.readCommonHosts();
-        this.visibleDialog = true;
+    public onClickedHostsEdit(filename: string): void {
+        this.txtDialogTitle = filename + ' 파일 수정';
+        this.isVisibleDialog = true;
     }
 
     public onClickedCommonHostsSave(): void {
-        this.saveCommonHosts(this.commonHosts);
         this.successNotify('저장한 결과가 hosts 에는 반영되지 않습니다.');
-        this.visibleDialog = false;
+        this.isVisibleDialog = false;
     }
 
     public onReadCommonHostsComplete(
@@ -243,7 +280,7 @@ export default class App extends AppBase {
         data: string
     ): void {
         if (err == null) {
-            this.commonHosts = data;
+            this.txtCommonHosts = data;
         }
     }
 }
@@ -253,13 +290,6 @@ export default class App extends AppBase {
 body {
     margin: 0;
 }
-.el-footer {
-    background-color: #f5f5f5;
-    color: #fff;
-    padding: 0px 20px !important;
-    height: 50px !important;
-    line-height: 50px !important;
-}
 
 .el-main {
     padding: 0 !important;
@@ -267,7 +297,6 @@ body {
 }
 
 .el-aside {
-    background-color: #545c64;
     height: 100vh;
     overflow-y: scroll;
 }
@@ -288,5 +317,33 @@ body {
 }
 .el-dialog__body {
     padding: 0px 5px !important;
+}
+
+.el-table {
+    font-size: 11px !important;
+}
+.el-table th,
+.el-table td {
+    padding: 2px 0 !important;
+}
+
+.el-button--mini {
+    padding: 3px 11px !important;
+    font-size: 8px !important;
+}
+
+.hosts-header {
+    padding: 10px 0;
+    font-size: 11px;
+    text-align: center;
+    background-color: #e5e5e5;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.hosts-column {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 </style>
