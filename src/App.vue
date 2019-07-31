@@ -36,7 +36,7 @@
                 <div class="hosts-header">
                     <span>Common Hosts</span
                     ><span style="width:60px; float:right;"
-                        ><el-button size="mini">Apply</el-button></span
+                        ><!-- el-button size="mini">Apply</el-button -->&nbsp;</span
                     >
                 </div>
                 <el-table
@@ -147,6 +147,7 @@ export default class App extends AppBase {
     public txtDialogTitle: string = '';
     public txtSystemHosts: string = '';
     public txtCommonHosts: string = '';
+    public txtCommonFilename: string = '';
 
     public listServerHosts: any[] = [];
     public listCommonHosts: any[] = [];
@@ -174,7 +175,7 @@ export default class App extends AppBase {
             name: 'save',
             bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
             exec: (editor: any) => {
-                this.onClickedSave();
+                this.onClickedSystemHostsSave();
             }
         });
 
@@ -199,12 +200,12 @@ export default class App extends AppBase {
 
     public created(): void {
         mousetrap.bind(['command+s', 'ctrl+s'], () => {
-            this.onClickedSave();
+            this.onClickedSystemHostsSave();
             return false;
         });
 
         ipcRenderer.send('watcherHosts');
-        ipcRenderer.send('readSystemHosts');
+        ipcRenderer.send('readLocalFile', 'hosts');
         ipcRenderer.send('readServerHostsList');
         ipcRenderer.send('readCommonHostsList');
 
@@ -224,11 +225,22 @@ export default class App extends AppBase {
         });
 
         ipcRenderer.on(
-            'onReadSystemHostsComplete',
-            (event: Electron.Event, data: string) => {
-                this.txtSystemHosts = data;
-                if (this.mainEditor != null) {
-                    this.mainEditor.gotoLine(0, 0, true);
+            'onReadLocalFileComplete',
+            (event: Electron.Event, filename: string, data: string) => {
+                if (filename == 'hosts') {
+                    this.txtSystemHosts = data;
+                    if (this.mainEditor != null) {
+                        this.mainEditor.gotoLine(0, 0, true);
+                    }
+                } else {
+                    if (this.txtCommonFilename == '') {
+                        return;
+                    }
+
+                    this.txtCommonHosts = data;
+                    if (this.subEditor != null) {
+                        this.subEditor.gotoLine(0, 0, true);
+                    }
                 }
             }
         );
@@ -243,12 +255,13 @@ export default class App extends AppBase {
         ipcRenderer.on(
             'onReadCommonHostsListComplete',
             (event: Electron.Event, list: string[]) => {
-                this.listCommonHosts.splice(0, this.listCommonHosts.length);
-
-                for (let i = 0; i < list.length; i++) {
-                    this.listCommonHosts.push({ filename: list[i] });
-                }
+                this.listCommonHosts = list;
             }
+        );
+
+        ipcRenderer.on(
+            'onReadCommonHostsComplete',
+            (event: Electron.Event, filename: string, data: string) => {}
         );
     }
 
@@ -258,7 +271,7 @@ export default class App extends AppBase {
         ipcRenderer.send('readServerHostsList');
     }
 
-    public onClickedSave(): void {}
+    public onClickedSystemHostsSave(): void {}
 
     public onSelectionChange(val: any[]): void {
         this.multipleSelection = val;
@@ -266,11 +279,15 @@ export default class App extends AppBase {
     }
 
     public onClickedHostsEdit(filename: string): void {
-        this.txtDialogTitle = filename + ' 파일 수정';
+        this.txtCommonFilename = filename;
+        ipcRenderer.send('readLocalFile', this.txtCommonFilename);
+
+        this.txtDialogTitle = this.txtCommonFilename + ' 파일 수정';
         this.isVisibleDialog = true;
     }
 
     public onClickedCommonHostsSave(): void {
+        this.txtCommonFilename = '';
         this.successNotify('저장한 결과가 hosts 에는 반영되지 않습니다.');
         this.isVisibleDialog = false;
     }
@@ -320,7 +337,7 @@ body {
 }
 
 .el-table {
-    font-size: 11px !important;
+    font-size: 10px !important;
 }
 .el-table th,
 .el-table td {
@@ -332,9 +349,19 @@ body {
     font-size: 8px !important;
 }
 
+.el-button--mini {
+    padding: 3px 11px !important;
+    font-size: 8px !important;
+}
+
+.el-button--small {
+    padding: 7px 15px !important;
+    font-size: 10px !important;
+}
+
 .hosts-header {
     padding: 10px 0;
-    font-size: 11px;
+    font-size: 12px;
     text-align: center;
     background-color: #e5e5e5;
     border-bottom: 1px solid #f5f5f5;

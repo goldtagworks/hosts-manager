@@ -13,17 +13,54 @@ const prefixServerURL: string = 'http://devenv.melon.com/hostsmanager_config2/';
 const filenameList: string = 'serverinfo.txt';
 const filenameCommon: string = '%EA%B3%B5%ED%86%B5.txt';
 
+function getFilename(fullpath: string): string {
+    let shash = '\\';
+    switch (process.platform) {
+        case 'darwin': {
+            shash = '/';
+            break;
+        }
+        case 'win32': {
+            shash = '\\';
+            break;
+        }
+    }
+    let iFirstShash = fullpath.lastIndexOf(shash) + 1;
+    return fullpath.substring(iFirstShash, fullpath.length);
+}
+
 function getHomePath(): string {
-    return os.homedir() + '/hosts/';
+    switch (process.platform) {
+        case 'darwin': {
+            return os.homedir() + '/hosts/';
+        }
+        case 'win32': {
+            return os.homedir() + '\\hosts\\';
+        }
+    }
+    return '';
 }
 
 function getHostsPath(): string {
     switch (process.platform) {
         case 'darwin': {
+            return '/etc/';
+        }
+        case 'win32': {
+            return process.env.SystemRoot + '\\system32\\drivers\\etc\\';
+        }
+    }
+
+    return '';
+}
+
+function getHostsFullPath(): string {
+    switch (process.platform) {
+        case 'darwin': {
             return '/etc/hosts';
         }
         case 'win32': {
-            return process.env.SystemRoot + '/system32/drivers/etc/hosts';
+            return process.env.SystemRoot + '\\system32\\drivers\\etc\\hosts';
         }
     }
 
@@ -31,26 +68,33 @@ function getHostsPath(): string {
 }
 
 // 로컬에 파일 읽기
-function readHosts(
-    event: Electron.Event | null,
-    filename: string,
-    channel: string
-): void {
+function readHosts(event: Electron.Event | null, filename: string): void {
+    let channel = 'onReadLocalFileComplete';
+
+    let fullpath: string;
+    if (filename == 'hosts') {
+        fullpath = getHostsPath();
+    } else {
+        fullpath = getHomePath();
+    }
+
+    fullpath += filename;
+
     fs.readFile(
-        filename,
+        fullpath,
         (err: NodeJS.ErrnoException | null, data: Buffer): void => {
             let result = '';
 
             if (err == null) {
                 result = iconv.decode(data, 'euc-kr');
-            } else {
-                AppMain.ipcMainSend('showTerminalCommand', '');
-            }
 
-            if (event != null) {
-                event.sender.send(channel, result);
+                if (event != null) {
+                    event.sender.send(channel, filename, result);
+                } else {
+                    AppMain.ipcMainSend(channel, filename, result);
+                }
             } else {
-                AppMain.ipcMainSend(channel, result);
+                AppMain.ipcMainSend('showTerminalCommand');
             }
         }
     );
@@ -58,56 +102,114 @@ function readHosts(
 
 // 로컬에 파일 저장
 function saveHosts(
-    event: Electron.Event,
+    event: Electron.Event | null,
     filename: string,
-    data: string,
-    channel: string
+    data: string
 ): void {
+    let channel = 'onSaveLocalFileComplete';
+
+    let fullpath: string;
+    if (filename == 'hosts') {
+        fullpath = getHostsPath();
+    } else {
+        fullpath = getHomePath();
+    }
+
+    fullpath += filename;
+
     let saveData = iconv.encode(data, 'euc-kr');
 
     fs.writeFile(filename, saveData, err => {
-        if (err != null) {
-            AppMain.ipcMainSend('showTerminalCommand', '');
-        }
-
-        if (event != null) {
-            event.sender.send(channel);
+        if (err == null) {
+            if (event != null) {
+                event.sender.send(channel);
+            } else {
+                AppMain.ipcMainSend(channel);
+            }
         } else {
-            AppMain.ipcMainSend(channel);
+            AppMain.ipcMainSend('showTerminalCommand');
+        }
+    });
+}
+
+function readCommonHostsList(event: Electron.Event | null): void {
+    fs.exists(getHomePath(), exists => {
+        if (exists) {
+            let items = fs.readdirSync(getHomePath());
+
+            // 목록구성
+            let list = new Array();
+
+            for (let i = 0; i < items.length; i++) {
+                let ext = items[i].split('.');
+
+                if (ext.length > 1) {
+                    if (ext[ext.length - 1] == 'txt') {
+                        list.push({ filename: items[i] });
+                    }
+                }
+            }
+
+            if (event != null) {
+                event.sender.send('onReadCommonHostsListComplete', list);
+            } else {
+                AppMain.ipcMainSend('onReadCommonHostsListComplete', list);
+            }
+        } else {
+            fs.mkdirSync(getHomePath());
         }
     });
 }
 
 // hosts 파일 변경 감지
 ipcMain.on('watcherHosts', (event: Electron.Event) => {
-    let watcher = fileWatcher.watch(getHostsPath());
+    fs.exists(getHomePath(), exists => {
+        if (!exists) {
+            fs.mkdirSync(getHomePath());
+        }
+    });
+
+    let watcher = fileWatcher.watch([getHostsFullPath(), getHomePath()]);
+    watcher.on(
+        'add',
+        (fullpath: string): void => {
+            if (fullpath != getHostsFullPath()) {
+                readCommonHostsList(null);
+            }
+        }
+    );
+    watcher.on(
+        'unlink',
+        (fullpath: string): void => {
+            if (fullpath != getHostsFullPath()) {
+                readCommonHostsList(null);
+            }
+        }
+    );
     watcher.on(
         'change',
-        (path: string): void => {
-            readHosts(null, getHostsPath(), 'onReadSystemHostsComplete');
+        (fullpath: string): void => {
+            if (fullpath == getHostsFullPath()) {
+                readHosts(null, 'hosts');
+            } else {
+                readHosts(null, getFilename(fullpath));
+            }
         }
     );
 });
 
 // hosts 파일 읽기
-ipcMain.on('readSystemHosts', (event: Electron.Event) => {
-    readHosts(event, getHostsPath(), 'onReadSystemHostsComplete');
+ipcMain.on('readLocalFile', (event: Electron.Event, filename: string) => {
+    readHosts(event, filename);
 });
 
 // hosts 파일 저장
-ipcMain.on('saveSystemHosts', (event: Electron.Event, data: string) => {
-    saveHosts(event, getHostsPath(), data, 'onSaveSystemHostsComplete');
-});
-
-// 공통 hosts 파일 읽기
-ipcMain.on('readCommonHosts', (event: Electron.Event, filename: string) => {
-    readHosts(event, getHomePath() + filename, 'onReadCommonHostsComplete');
-});
-
-// 공통 hosts 파일 저장
-ipcMain.on('saveCommonHosts', (event: Electron.Event, data: string) => {
-    saveHosts(event, getHomePath(), data, 'onSaveCommonHostsComplete');
-});
+ipcMain.on(
+    'saveLocalFile',
+    (event: Electron.Event, filename: string, data: string) => {
+        saveHosts(event, filename, data);
+    }
+);
 
 // 서버파일
 async function getServerFile(filename: string): Promise<string> {
@@ -168,12 +270,7 @@ ipcMain.on('saveServerHosts', (event: Electron.Event, filename: string) => {
                     );
                     result += iconv.decode(data, 'euc-kr');
 
-                    saveHosts(
-                        event,
-                        getHostsPath(),
-                        result,
-                        'onSaveServerHostsComplete'
-                    );
+                    saveHosts(event, 'hosts', result);
                 })
                 .catch((err: any) => {
                     event.sender.send('errorNotify', err);
@@ -185,14 +282,5 @@ ipcMain.on('saveServerHosts', (event: Electron.Event, filename: string) => {
 });
 
 ipcMain.on('readCommonHostsList', (event: Electron.Event) => {
-    fs.exists(getHomePath(), exists => {
-        if (exists) {
-            event.sender.send(
-                'onReadCommonHostsListComplete',
-                fs.readdirSync(getHomePath())
-            );
-        } else {
-            fs.mkdirSync(getHomePath());
-        }
-    });
+    readCommonHostsList(event);
 });
