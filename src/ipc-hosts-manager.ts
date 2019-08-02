@@ -1,286 +1,438 @@
-import { ipcMain } from 'electron';
+import { ipcMain, Menu, MenuItem } from 'electron';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 
 import axios from 'axios';
 import iconv from 'iconv-lite';
 import fileWatcher from 'chokidar';
-import { appMain, AppMain } from './app-main';
+import Helper from './helper';
+import { AppMain } from './app-main';
+import { Checkbox } from 'element-ui';
 
-const prefixServerURL: string = 'http://devenv.melon.com/hostsmanager_config2/';
-// const prefixServerURL: string = 'http://127.0.0.1/hosts/';
-const filenameList: string = 'serverinfo.txt';
-const filenameCommon: string = '%EA%B3%B5%ED%86%B5.txt';
+export default class IPCMainHostsManager {
+    public prefixServerURL: string =
+        'http://devenv.melon.com/hostsmanager_config2/';
+    // public prefixServerURL: string = 'http://127.0.0.1/hosts/';
+    public filenameList: string = 'serverinfo.txt';
+    public filenameCommon: string = 'COMMON.txt';
+    public appMain: AppMain;
+    public trayMenu: Menu | null = null;
 
-function getFilename(fullpath: string): string {
-    let shash = '\\';
-    switch (process.platform) {
-        case 'darwin': {
-            shash = '/';
-            break;
-        }
-        case 'win32': {
-            shash = '\\';
-            break;
-        }
-    }
-    let iFirstShash = fullpath.lastIndexOf(shash) + 1;
-    return fullpath.substring(iFirstShash, fullpath.length);
-}
+    public lodingServerData: boolean = false;
+    public lodingCommonData: boolean = false;
+    public trayServerList = Helper.readConfig('server.list.config.json');
+    public trayCommonList = Helper.readConfig('common.list.config.json');
 
-function getHomePath(): string {
-    switch (process.platform) {
-        case 'darwin': {
-            return os.homedir() + '/hosts/';
-        }
-        case 'win32': {
-            return os.homedir() + '\\hosts\\';
-        }
-    }
-    return '';
-}
+    public constructor(appMain: AppMain) {
+        this.appMain = appMain;
 
-function getHostsPath(): string {
-    switch (process.platform) {
-        case 'darwin': {
-            return '/etc/';
+        let filename = '';
+        for (let item of this.trayServerList) {
+            if (item.checked == true) {
+                filename = item.label;
+            }
         }
-        case 'win32': {
-            return process.env.SystemRoot + '\\system32\\drivers\\etc\\';
-        }
+        this.saveHostsList(filename, this.trayCommonList, false);
+
+        this.initIPC();
     }
 
-    return '';
-}
+    private initIPC(): void {
+        // hosts 파일 읽기
+        ipcMain.on(
+            'readLocalFile',
+            (event: Electron.Event, filename: string) => {
+                this.readHosts(filename);
+            }
+        );
 
-function getHostsFullPath(): string {
-    switch (process.platform) {
-        case 'darwin': {
-            return '/etc/hosts';
-        }
-        case 'win32': {
-            return process.env.SystemRoot + '\\system32\\drivers\\etc\\hosts';
-        }
+        // hosts 파일 저장
+        ipcMain.on(
+            'saveLocalFile',
+            (event: Electron.Event, filename: string, data: string) => {
+                this.saveHosts(filename, data, true);
+            }
+        );
+
+        ipcMain.on('readServerHostsList', (event: Electron.Event) => {
+            this.lodingServerData = false;
+            this.getServerFile(this.filenameList)
+                .then((response: string) => {
+                    response = response.replace(/\r/gi, '');
+                    let items = response.split('\n');
+
+                    // 목록구성
+                    let list = new Array();
+
+                    for (let filename of items) {
+                        if (filename != '') {
+                            list.push({
+                                checked: this.getCheckedState(
+                                    this.trayServerList,
+                                    filename
+                                ),
+                                label: filename
+                            });
+                        }
+                    }
+
+                    this.createTrayMenuList(
+                        this.trayServerList,
+                        list,
+                        'onClickedServerMenuItem'
+                    );
+
+                    this.lodingServerData = true;
+                    this.createTrayMenu();
+                    event.sender.send('onReadServerHostsListComplete', list);
+                })
+                .catch((err: any) => {
+                    event.sender.send(
+                        'errorNotify',
+                        'hosts 관리 서버에 접속할수 없습니다.'
+                    );
+                });
+        });
+
+        ipcMain.on('readCommonHostsList', (event: Electron.Event) => {
+            this.readCommonHostsList(event);
+        });
+
+        ipcMain.on(
+            'saveHostsList',
+            (event: Electron.Event, filename: string, list: any) => {
+                this.menuSync(filename, list);
+
+                this.saveHostsList(filename, list, true);
+
+                Helper.saveConfig(
+                    'server.list.config.json',
+                    this.trayServerList
+                );
+                Helper.saveConfig(
+                    'common.list.config.json',
+                    this.trayCommonList
+                );
+            }
+        );
     }
 
-    return '';
-}
+    public appendLocalFile(list: any): string {
+        let result = '';
 
-// 로컬에 파일 읽기
-function readHosts(event: Electron.Event | null, filename: string): void {
-    let channel = 'onReadLocalFileComplete';
+        for (let item of list) {
+            if (item.checked == false) {
+                continue;
+            }
 
-    let fullpath: string;
-    if (filename == 'hosts') {
-        fullpath = getHostsPath();
-    } else {
-        fullpath = getHomePath();
+            let fullpath = path.join(Helper.getHomePath(), item.label);
+            if (fs.existsSync(fullpath)) {
+                let data = fs.readFileSync(fullpath);
+
+                result += iconv.decode(data, 'euc-kr');
+                result += '\r\n\r\n';
+            }
+        }
+
+        return result;
     }
 
-    fullpath += filename;
+    public watcherHosts(): void {
+        if (!fs.existsSync(Helper.getHomePath())) {
+            fs.mkdirSync(Helper.getHomePath());
+        }
 
-    fs.readFile(
-        fullpath,
-        (err: NodeJS.ErrnoException | null, data: Buffer): void => {
-            let result = '';
-
-            if (err == null) {
-                result = iconv.decode(data, 'euc-kr');
-
-                if (event != null) {
-                    event.sender.send(channel, filename, result);
-                } else {
-                    AppMain.ipcMainSend(channel, filename, result);
+        let watcher = fileWatcher.watch([
+            Helper.getHostsFullPath(),
+            Helper.getHomePath()
+        ]);
+        watcher.on(
+            'add',
+            (fullpath: string): void => {
+                if (fullpath != Helper.getHostsFullPath()) {
+                    this.readCommonHostsList(null);
                 }
-            } else {
-                AppMain.ipcMainSend('showTerminalCommand');
             }
-        }
-    );
-}
-
-// 로컬에 파일 저장
-function saveHosts(
-    event: Electron.Event | null,
-    filename: string,
-    data: string
-): void {
-    let channel = 'onSaveLocalFileComplete';
-
-    let fullpath: string;
-    if (filename == 'hosts') {
-        fullpath = getHostsPath();
-    } else {
-        fullpath = getHomePath();
+        );
+        watcher.on(
+            'unlink',
+            (fullpath: string): void => {
+                if (fullpath != Helper.getHostsFullPath()) {
+                    this.readCommonHostsList(null);
+                }
+            }
+        );
+        watcher.on(
+            'change',
+            (fullpath: string): void => {
+                if (fullpath == Helper.getHostsFullPath()) {
+                    this.readHosts('hosts');
+                } else {
+                    this.readHosts(Helper.getFilename(fullpath));
+                }
+            }
+        );
     }
 
-    fullpath += filename;
-
-    let saveData = iconv.encode(data, 'euc-kr');
-
-    fs.writeFile(filename, saveData, err => {
-        if (err == null) {
-            if (event != null) {
-                event.sender.send(channel);
-            } else {
-                AppMain.ipcMainSend(channel);
+    private initTrayMenuChecked(isChecked: boolean): void {
+        if (this.trayMenu != null) {
+            for (let item of this.trayMenu.items) {
+                item.checked = isChecked;
             }
-        } else {
-            AppMain.ipcMainSend('showTerminalCommand');
         }
-    });
-}
 
-function readCommonHostsList(event: Electron.Event | null): void {
-    fs.exists(getHomePath(), exists => {
-        if (exists) {
-            let items = fs.readdirSync(getHomePath());
+        for (let item of this.trayServerList) {
+            item.checked = isChecked;
+        }
+        for (let item of this.trayCommonList) {
+            item.checked = isChecked;
+        }
+    }
 
-            // 목록구성
-            let list = new Array();
+    private trayMenuChecked(index: number, isChecked: boolean): void {
+        if (this.trayMenu != null) {
+            this.trayMenu.items[index].checked = isChecked;
+        }
+    }
 
-            for (let i = 0; i < items.length; i++) {
-                let ext = items[i].split('.');
+    public createTrayMenuList(
+        trayMenuList: any,
+        list: any,
+        channel: string
+    ): void {
+        trayMenuList.splice(0, trayMenuList.length);
+        for (let item of list) {
+            trayMenuList.push({
+                type: 'checkbox',
+                checked: item.checked,
+                label: item.label,
+                click: (item: any) => {
+                    this.ipcMainSend(channel, item.label);
+                }
+            });
+        }
+    }
 
-                if (ext.length > 1) {
-                    if (ext[ext.length - 1] == 'txt') {
-                        list.push({ filename: items[i] });
+    public getCheckedState(trayMenuList: any, filename: string): boolean {
+        for (let item of trayMenuList) {
+            if (item.label == filename) {
+                return item.checked;
+            }
+        }
+
+        return false;
+    }
+
+    private menuSync(filename: string, list: any): void {
+        this.initTrayMenuChecked(false);
+
+        this.trayServerList.forEach(
+            (item: any, index: number, array: any): void => {
+                if (item.label == filename) {
+                    item.checked = true;
+
+                    this.trayMenuChecked(index, true);
+                }
+            }
+        );
+
+        let idxTray = this.trayServerList.length;
+
+        // separator 추가된 경우
+        if (this.trayServerList.length > 0) {
+            idxTray++;
+        }
+
+        this.trayCommonList.forEach(
+            (item: any, index: number, array: any): void => {
+                for (let sync_item of list) {
+                    if (item.label == sync_item.label) {
+                        item.checked = sync_item.checked;
+
+                        this.trayMenuChecked(
+                            idxTray + index,
+                            sync_item.checked
+                        );
                     }
                 }
             }
-
-            if (event != null) {
-                event.sender.send('onReadCommonHostsListComplete', list);
-            } else {
-                AppMain.ipcMainSend('onReadCommonHostsListComplete', list);
-            }
-        } else {
-            fs.mkdirSync(getHomePath());
-        }
-    });
-}
-
-// hosts 파일 변경 감지
-ipcMain.on('watcherHosts', (event: Electron.Event) => {
-    fs.exists(getHomePath(), exists => {
-        if (!exists) {
-            fs.mkdirSync(getHomePath());
-        }
-    });
-
-    let watcher = fileWatcher.watch([getHostsFullPath(), getHomePath()]);
-    watcher.on(
-        'add',
-        (fullpath: string): void => {
-            if (fullpath != getHostsFullPath()) {
-                readCommonHostsList(null);
-            }
-        }
-    );
-    watcher.on(
-        'unlink',
-        (fullpath: string): void => {
-            if (fullpath != getHostsFullPath()) {
-                readCommonHostsList(null);
-            }
-        }
-    );
-    watcher.on(
-        'change',
-        (fullpath: string): void => {
-            if (fullpath == getHostsFullPath()) {
-                readHosts(null, 'hosts');
-            } else {
-                readHosts(null, getFilename(fullpath));
-            }
-        }
-    );
-});
-
-// hosts 파일 읽기
-ipcMain.on('readLocalFile', (event: Electron.Event, filename: string) => {
-    readHosts(event, filename);
-});
-
-// hosts 파일 저장
-ipcMain.on(
-    'saveLocalFile',
-    (event: Electron.Event, filename: string, data: string) => {
-        saveHosts(event, filename, data);
+        );
     }
-);
 
-// 서버파일
-async function getServerFile(filename: string): Promise<string> {
-    axios.defaults.headers.common['Cache-Control'] = 'no-cache';
-    let response = await axios.request({
-        method: 'GET',
-        url: prefixServerURL + filename,
-        responseType: 'arraybuffer'
-    });
-    let contents = Buffer.from(response.data);
+    private createTrayMenu(): void {
+        if (this.lodingServerData == false || this.lodingCommonData == false) {
+            return;
+        }
 
-    return iconv.decode(contents, 'euc-kr');
-}
+        if (this.appMain.tray != null) {
+            let menu = new Menu();
 
-ipcMain.on('readServerHostsList', (event: Electron.Event) => {
-    getServerFile(filenameList)
-        .then((response: string) => {
-            let items = response.split('\n');
+            for (let item of this.trayServerList) {
+                menu.append(new MenuItem(item));
+            }
+            if (
+                this.trayServerList.length > 0 &&
+                this.trayCommonList.length > 0
+            ) {
+                menu.append(new MenuItem({ type: 'separator' }));
+            }
+            for (let item of this.trayCommonList) {
+                menu.append(new MenuItem(item));
+            }
 
-            // 목록구성
-            let list = new Array();
-            // 리스트를 다시 읽으면 tray 메뉴를 다시 만든다.
-            let trayMenu = new Array();
+            this.trayMenu = menu;
+            this.appMain.tray.setContextMenu(this.trayMenu);
+        }
+    }
 
-            for (let i = 0; i < items.length; i++) {
-                if (items[i] != '') {
-                    list.push({ filename: items[i] });
-                    trayMenu.push({ label: items[i] });
+    private ipcMainSend(channel: string, ...args: any[]): void {
+        if (this.appMain.win != null) {
+            this.appMain.win.webContents.send(channel, ...args);
+        }
+    }
+
+    // 로컬에 파일 읽기
+    private readHosts(filename: string): void {
+        let channel = 'onReadLocalFileComplete';
+
+        let fullpath: string;
+        if (filename == 'hosts') {
+            fullpath = Helper.getHostsPath();
+        } else {
+            fullpath = Helper.getHomePath();
+        }
+
+        fullpath += filename;
+
+        fs.readFile(
+            fullpath,
+            (err: NodeJS.ErrnoException | null, data: Buffer): void => {
+                let result = '';
+
+                if (err == null) {
+                    result = iconv.decode(data, 'euc-kr');
+
+                    this.ipcMainSend(channel, filename, result);
+                } else {
+                    this.ipcMainSend('showTerminalCommand');
                 }
             }
+        );
+    }
 
-            AppMain.createTrayMenu(trayMenu);
-            event.sender.send('onReadServerHostsListComplete', list);
-        })
-        .catch((err: any) => {
-            event.sender.send(
-                'errorNotify',
-                'hosts 관리 서버에 접속할수 없습니다.'
-            );
+    // 로컬에 파일 저장
+    private saveHosts(filename: string, data: string, sendFlag: boolean): void {
+        let channel = 'onSaveLocalFileComplete';
+
+        let fullpath: string;
+        if (filename == 'hosts') {
+            fullpath = Helper.getHostsPath();
+        } else {
+            fullpath = Helper.getHomePath();
+        }
+
+        fullpath += filename;
+
+        let saveData = iconv.encode(data, 'euc-kr');
+        fs.writeFile(fullpath, saveData, err => {
+            if (sendFlag == true) {
+                if (err == null) {
+                    this.ipcMainSend(channel);
+                } else {
+                    this.ipcMainSend('showTerminalCommand');
+                }
+            }
         });
-});
+    }
 
-ipcMain.on('saveServerHosts', (event: Electron.Event, filename: string) => {
-    let result: string = '';
-
-    getServerFile(filename + '.txt')
-        .then((response: string) => {
-            result += response;
-            result += '\r\n\r\n';
-
-            getServerFile(filenameCommon)
+    private saveHostsList(
+        filename: string,
+        list: any,
+        sendFlag: boolean
+    ): void {
+        let result: string = '';
+        if (filename != '') {
+            this.getServerFile(filename + '.txt')
                 .then((response: string) => {
                     result += response;
                     result += '\r\n\r\n';
 
-                    let data = fs.readFileSync(
-                        getHomePath() + 'local_common.txt'
-                    );
-                    result += iconv.decode(data, 'euc-kr');
+                    this.getServerFile(this.filenameCommon)
+                        .then((response: string) => {
+                            result += response;
+                            result += '\r\n\r\n';
 
-                    saveHosts(event, 'hosts', result);
+                            result += this.appendLocalFile(list);
+
+                            this.saveHosts('hosts', result, sendFlag);
+                        })
+                        .catch((err: any) => {
+                            this.ipcMainSend('errorNotify', err);
+                        });
                 })
                 .catch((err: any) => {
-                    event.sender.send('errorNotify', err);
+                    this.ipcMainSend('errorNotify', err);
                 });
-        })
-        .catch((err: any) => {
-            event.sender.send('errorNotify', err);
-        });
-});
+        } else {
+            result += this.appendLocalFile(list);
 
-ipcMain.on('readCommonHostsList', (event: Electron.Event) => {
-    readCommonHostsList(event);
-});
+            this.saveHosts('hosts', result, sendFlag);
+        }
+    }
+
+    private readCommonHostsList(event: Electron.Event | null): void {
+        if (fs.existsSync(Helper.getHomePath())) {
+            this.lodingCommonData = false;
+            let items = fs.readdirSync(Helper.getHomePath());
+
+            // 목록구성
+            let list = new Array();
+
+            for (let filename of items) {
+                let ext = filename.split('.');
+
+                if (ext.length > 1) {
+                    if (ext[ext.length - 1] == 'txt') {
+                        list.push({
+                            checked: this.getCheckedState(
+                                this.trayCommonList,
+                                filename
+                            ),
+                            label: filename
+                        });
+                    }
+                }
+            }
+
+            this.createTrayMenuList(
+                this.trayCommonList,
+                list,
+                'onClickedCommonMenuItem'
+            );
+
+            this.lodingCommonData = true;
+            this.createTrayMenu();
+
+            if (event != null) {
+                event.sender.send('onReadCommonHostsListComplete', list);
+            } else {
+                this.ipcMainSend('onReadCommonHostsListComplete', list);
+            }
+        } else {
+            fs.mkdirSync(Helper.getHomePath());
+        }
+    }
+
+    // 서버파일
+    private async getServerFile(filename: string): Promise<string> {
+        axios.defaults.headers.common['Cache-Control'] = 'no-cache';
+        let response = await axios.request({
+            method: 'GET',
+            url: this.prefixServerURL + filename,
+            responseType: 'arraybuffer'
+        });
+        let contents = Buffer.from(response.data);
+
+        return iconv.decode(contents, 'euc-kr');
+    }
+}

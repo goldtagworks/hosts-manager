@@ -1,33 +1,26 @@
 'use strict';
 
-import {
-    app,
-    protocol,
-    BrowserWindow,
-    Tray,
-    Menu,
-    nativeImage
-} from 'electron';
-
+import { app, protocol, BrowserWindow, Tray, nativeImage } from 'electron';
 import {
     createProtocol,
     installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 
+import IPCMainHostsManager from './ipc-hosts-manager';
 import path from 'path';
 
+// 메인 클래스
 class AppMain {
-    isDevelopment = process.env.NODE_ENV !== 'production';
-    public static _this: AppMain | null = null;
+    public isDevelopment = process.env.NODE_ENV !== 'production';
 
     // Keep a global reference of the window object, if you don't, the window will
     // be closed automatically when the JavaScript object is garbage collected.
     public win: BrowserWindow | null = null;
-    public tray: Electron.Tray | null = null;
+    public tray: Tray | null = null;
+    public ipc: IPCMainHostsManager = new IPCMainHostsManager(this);
 
+    // 생성자에서 기본적인 초기화
     public constructor() {
-        AppMain._this = this;
-
         // Scheme must be registered before the app is ready
         protocol.registerSchemesAsPrivileged([
             // { scheme: 'app', privileges: { secure: true, standard: true } }
@@ -57,6 +50,7 @@ class AppMain {
         app.quit();
     }
 
+    // async 윈도우 생성
     public async create(): Promise<void> {
         if (this.isDevelopment && !process.env.IS_TEST) {
             // Install Vue Devtools
@@ -83,6 +77,7 @@ class AppMain {
         }
     }
 
+    // 실제 윈도우 생성함수
     public createWindow(): void {
         if (this.win != null) {
             return;
@@ -115,32 +110,27 @@ class AppMain {
         this.win.on('closed', () => {
             this.win = null;
         });
+
+        this.ipc.watcherHosts();
     }
 
+    // 트레이 생성함수
     public createTray(): void {
         if (this.tray != null) {
             return;
         }
 
+        // 빌드용과 테스트용은 경로가 다르다.
+        let iconPath = '/hosts.png';
+        if (this.isDevelopment && !process.env.IS_TEST) {
+            iconPath = '../public/hosts.png';
+        }
+
         const trayIcon = nativeImage.createFromPath(
-            path.join(__dirname, '/hosts.png')
+            path.join(__dirname, iconPath)
         );
         this.tray = new Tray(trayIcon.resize({ width: 16, height: 16 }));
-    }
-
-    public static createTrayMenu(
-        template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[]
-    ): void {
-        if (AppMain._this != null && AppMain._this.tray != null) {
-            let trayMenu = Menu.buildFromTemplate(template);
-            AppMain._this.tray.setContextMenu(trayMenu);
-        }
-    }
-
-    public static ipcMainSend(channel: string, ...args: any[]): void {
-        if (AppMain._this != null && AppMain._this.win != null) {
-            AppMain._this.win.webContents.send(channel, ...args);
-        }
+        this.tray.setToolTip('Hosts Manager');
     }
 }
 

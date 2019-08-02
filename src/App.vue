@@ -3,7 +3,7 @@
         <el-container direction="horizontal">
             <el-aside width="260px">
                 <div class="hosts-header">
-                    <span>Server Hosts</span
+                    <span>서버 호스트 목록</span
                     ><span style="width:60px; float:right;"
                         ><el-button size="mini" @click="onClickedRefresh"
                             >Refresh</el-button
@@ -14,8 +14,18 @@
                     :show-header="false"
                     :data="listServerHosts"
                     style="width: 100%"
+                    @row-click="onClickedServerHosts"
+                    size="mini"
                 >
-                    <el-table-column width="48px"> </el-table-column>
+                    <el-table-column width="34px">
+                        <template slot-scope="scope">
+                            <el-checkbox
+                                v-if="scope.row['checked'] == true"
+                                size="mini"
+                                :checked="true"
+                            ></el-checkbox>
+                        </template>
+                    </el-table-column>
                     <el-table-column
                         v-for="item in headerData"
                         :key="item.prop"
@@ -34,18 +44,28 @@
                     </el-table-column>
                 </el-table>
                 <div class="hosts-header">
-                    <span>Common Hosts</span
+                    <span>로컬 호스트 목록</span
                     ><span style="width:60px; float:right;"
-                        ><!-- el-button size="mini">Apply</el-button -->&nbsp;</span
+                        ><!-- el-button size="mini" @click="onClickedCommonHosts"
+                            >Apply</el-button
+                        -->&nbsp;</span
                     >
                 </div>
                 <el-table
                     :show-header="false"
                     :data="listCommonHosts"
                     style="width: 100%"
-                    @selection-change="onSelectionChange"
+                    @row-click="onClickedCommonHosts"
+                    size="mini"
                 >
-                    <el-table-column type="selection" width="48px">
+                    <el-table-column width="34px">
+                        <template slot-scope="scope">
+                            <el-checkbox
+                                v-if="scope.row['checked'] == true"
+                                size="mini"
+                                :checked="true"
+                            ></el-checkbox>
+                        </template>
                     </el-table-column>
                     <el-table-column
                         v-for="item in headerData"
@@ -67,9 +87,7 @@
                         <template slot-scope="scope">
                             <el-button
                                 size="mini"
-                                @click="
-                                    onClickedHostsEdit(scope.row['filename'])
-                                "
+                                @click="onClickedHostsEdit(scope.row['label'])"
                                 >Edit</el-button
                             >
                         </template>
@@ -146,19 +164,22 @@ import { ElMenu } from 'element-ui/types/menu';
 export default class App extends AppBase {
     public txtDialogTitle: string = '';
     public txtSystemHosts: string = '';
+    public txtServerFilename: string = '';
+    public listServerHosts: any[] = [];
+
     public txtCommonHosts: string = '';
     public txtCommonFilename: string = '';
-
-    public listServerHosts: any[] = [];
     public listCommonHosts: any[] = [];
-    public multipleSelection: any[] = [];
+
     public mainEditor: any = null;
     public subEditor: any = null;
     public isVisibleDialog: boolean = false;
+    public rowClickEvent: boolean = true;
+    public isSaved: boolean = false;
 
     public headerData: any = [
         {
-            prop: 'filename',
+            prop: 'label',
             label: 'Server Hosts',
             headerAlign: 'center',
             align: 'left'
@@ -204,7 +225,10 @@ export default class App extends AppBase {
             return false;
         });
 
-        ipcRenderer.send('watcherHosts');
+        this.initIPC();
+    }
+
+    public initIPC() {
         ipcRenderer.send('readLocalFile', 'hosts');
         ipcRenderer.send('readServerHostsList');
         ipcRenderer.send('readCommonHostsList');
@@ -227,15 +251,22 @@ export default class App extends AppBase {
         ipcRenderer.on(
             'onReadLocalFileComplete',
             (event: Electron.Event, filename: string, data: string) => {
+                if (this.isSaved == true) {
+                    this.isSaved = false;
+
+                    // 체크된 로컬파일이 수정된 경우 hosts 에 반영
+                    this.changeSaveCommonHosts(this.txtCommonFilename);
+
+                    return;
+                }
                 if (filename == 'hosts') {
                     this.txtSystemHosts = data;
                     if (this.mainEditor != null) {
                         this.mainEditor.gotoLine(0, 0, true);
                     }
                 } else {
-                    if (this.txtCommonFilename == '') {
-                        return;
-                    }
+                    // 체크된 로컬파일이 수정된 경우 hosts 에 반영
+                    this.changeSaveCommonHosts(filename);
 
                     this.txtCommonHosts = data;
                     if (this.subEditor != null) {
@@ -247,38 +278,109 @@ export default class App extends AppBase {
 
         ipcRenderer.on(
             'onReadServerHostsListComplete',
-            (event: Electron.Event, list: string[]) => {
+            (event: Electron.Event, list: any) => {
+                for (let item of list) {
+                    if (item.checked == true) {
+                        this.txtServerFilename = item.label;
+                    }
+                }
                 this.listServerHosts = list;
             }
         );
 
         ipcRenderer.on(
             'onReadCommonHostsListComplete',
-            (event: Electron.Event, list: string[]) => {
+            (event: Electron.Event, list: any) => {
                 this.listCommonHosts = list;
             }
         );
 
         ipcRenderer.on(
-            'onReadCommonHostsComplete',
-            (event: Electron.Event, filename: string, data: string) => {}
+            'onClickedServerMenuItem',
+            (event: Electron.Event, filename: string) => {
+                for (let item of this.listServerHosts) {
+                    if (item.label == filename) {
+                        this.onClickedServerHosts(item, item, null);
+                        break;
+                    }
+                }
+            }
+        );
+
+        ipcRenderer.on(
+            'onClickedCommonMenuItem',
+            (event: Electron.Event, filename: string) => {
+                for (let item of this.listCommonHosts) {
+                    if (item.label == filename) {
+                        this.onClickedCommonHosts(item, item, null);
+                        break;
+                    }
+                }
+            }
         );
     }
 
-    public onClickedServerHost(filename: string): void {}
+    public changeSaveCommonHosts(filename: string): void {
+        for (let item of this.listCommonHosts) {
+            if (item.label == filename && item.checked == true) {
+                ipcRenderer.send(
+                    'saveHostsList',
+                    this.txtServerFilename,
+                    this.listCommonHosts
+                );
+            }
+        }
+    }
 
     public onClickedRefresh(): void {
         ipcRenderer.send('readServerHostsList');
     }
 
-    public onClickedSystemHostsSave(): void {}
+    public onClickedServerHosts(row: any, column: any, event: any): void {
+        let isSaveChecked = row.checked;
+        for (let item of this.listServerHosts) {
+            item.checked = false;
+        }
 
-    public onSelectionChange(val: any[]): void {
-        this.multipleSelection = val;
-        console.log(val);
+        row.checked = !isSaveChecked;
+        if (row.checked == true) {
+            this.txtServerFilename = row.label;
+        } else {
+            this.txtServerFilename = '';
+        }
+
+        ipcRenderer.send(
+            'saveHostsList',
+            this.txtServerFilename,
+            this.listCommonHosts
+        );
+    }
+
+    public onClickedCommonHosts(row: any, column: any, event: any): void {
+        if (this.rowClickEvent == false) {
+            this.rowClickEvent = true;
+            return;
+        }
+
+        if (row != null && row != undefined) {
+            row.checked = !row.checked;
+        }
+
+        ipcRenderer.send(
+            'saveHostsList',
+            this.txtServerFilename,
+            this.listCommonHosts
+        );
+    }
+
+    public onClickedSystemHostsSave(): void {
+        this.isSaved = true;
+        ipcRenderer.send('saveLocalFile', 'hosts', this.txtSystemHosts);
     }
 
     public onClickedHostsEdit(filename: string): void {
+        this.rowClickEvent = false;
+
         this.txtCommonFilename = filename;
         ipcRenderer.send('readLocalFile', this.txtCommonFilename);
 
@@ -287,18 +389,13 @@ export default class App extends AppBase {
     }
 
     public onClickedCommonHostsSave(): void {
-        this.txtCommonFilename = '';
-        this.successNotify('저장한 결과가 hosts 에는 반영되지 않습니다.');
+        this.isSaved = true;
+        ipcRenderer.send(
+            'saveLocalFile',
+            this.txtCommonFilename,
+            this.txtCommonHosts
+        );
         this.isVisibleDialog = false;
-    }
-
-    public onReadCommonHostsComplete(
-        err: NodeJS.ErrnoException | null,
-        data: string
-    ): void {
-        if (err == null) {
-            this.txtCommonHosts = data;
-        }
     }
 }
 </script>
@@ -339,6 +436,9 @@ body {
 .el-table {
     font-size: 10px !important;
 }
+.el-table .cell {
+    line-height: 22px !important;
+}
 .el-table th,
 .el-table td {
     padding: 2px 0 !important;
@@ -368,7 +468,6 @@ body {
 }
 
 .hosts-column {
-    display: inline-block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
