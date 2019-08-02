@@ -38,6 +38,36 @@ export default class IPCMainHostsManager {
     }
 
     private initIPC(): void {
+        // 파일 생성
+        ipcMain.on('createFile', (event: Electron.Event, filename: string) => {
+            let fullpath = path.join(Helper.getHomePath(), filename);
+            if (!fs.existsSync(fullpath)) {
+                fs.writeFileSync(fullpath, '', { encoding: 'utf8' });
+            }
+        });
+
+        // 파일 이름 변경
+        ipcMain.on(
+            'renameFile',
+            (event: Electron.Event, ofilename: string, nfilename: string) => {
+                let ofullpath = path.join(Helper.getHomePath(), ofilename);
+                let nfullpath = path.join(Helper.getHomePath(), nfilename);
+                if (!fs.existsSync(nfullpath)) {
+                    if (fs.existsSync(ofullpath)) {
+                        fs.renameSync(ofullpath, nfullpath);
+                    }
+                }
+            }
+        );
+
+        // 파일 삭제
+        ipcMain.on('deleteFile', (event: Electron.Event, filename: string) => {
+            let fullpath = path.join(Helper.getHomePath(), filename);
+            if (fs.existsSync(fullpath)) {
+                fs.unlinkSync(fullpath);
+            }
+        });
+
         // hosts 파일 읽기
         ipcMain.on(
             'readLocalFile',
@@ -352,7 +382,7 @@ export default class IPCMainHostsManager {
     ): void {
         let result: string = '';
         if (filename != '') {
-            this.getServerFile(filename + '.txt')
+            this.getServerFile(`${filename}.txt`)
                 .then((response: string) => {
                     result += response;
                     result += '\r\n\r\n';

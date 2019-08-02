@@ -1,11 +1,15 @@
 <template>
     <el-container id="App" direction="vertical">
         <el-container direction="horizontal">
-            <el-aside width="260px">
+            <el-aside width="300px">
                 <div class="hosts-header">
                     <span>서버 호스트 목록</span
-                    ><span style="width:60px; float:right;"
-                        ><el-button size="mini" @click="onClickedRefresh"
+                    ><span style="width:80px; float:right;"
+                        ><el-button
+                            size="mini"
+                            type="primary"
+                            plain
+                            @click="onClickedRefresh"
                             >Refresh</el-button
                         ></span
                     >
@@ -44,12 +48,17 @@
                     </el-table-column>
                 </el-table>
                 <div class="hosts-header">
-                    <span>로컬 호스트 목록</span
-                    ><span style="width:60px; float:right;"
-                        ><!-- el-button size="mini" @click="onClickedCommonHosts"
-                            >Apply</el-button
-                        -->&nbsp;</span
-                    >
+                    <span>로컬 호스트 목록</span>
+                    <span style="width:80px; float:right;">
+                        <el-button
+                            size="mini"
+                            type="primary"
+                            plain
+                            @click="onClickedCreateFile"
+                        >
+                            New File</el-button
+                        >
+                    </span>
                 </div>
                 <el-table
                     :show-header="false"
@@ -83,12 +92,28 @@
                             ></span>
                         </template>
                     </el-table-column>
-                    <el-table-column width="60px">
+                    <el-table-column width="125px">
                         <template slot-scope="scope">
                             <el-button
                                 size="mini"
-                                @click="onClickedHostsEdit(scope.row['label'])"
+                                type="primary"
+                                plain
+                                @click="onClickedEdit(scope.row['label'])"
                                 >Edit</el-button
+                            >
+                            <el-button
+                                size="mini"
+                                type="success"
+                                plain
+                                @click="onClickedRename(scope.row['label'])"
+                                >Ren</el-button
+                            >
+                            <el-button
+                                size="mini"
+                                type="danger"
+                                plain
+                                @click="onClickedDelete(scope.row['label'])"
+                                >Del</el-button
                             >
                         </template>
                     </el-table-column>
@@ -128,7 +153,7 @@
             <span slot="footer" class="dialog-footer">
                 <el-button
                     size="small"
-                    @click="isVisibleDialog = false"
+                    @click="onClickedCommonHostsClose"
                     icon="el-icon-close"
                     >닫기</el-button
                 >
@@ -268,9 +293,11 @@ export default class App extends AppBase {
                     // 체크된 로컬파일이 수정된 경우 hosts 에 반영
                     this.changeSaveCommonHosts(filename);
 
-                    this.txtCommonHosts = data;
-                    if (this.subEditor != null) {
-                        this.subEditor.gotoLine(0, 0, true);
+                    if (this.txtCommonFilename == filename) {
+                        this.txtCommonHosts = data;
+                        if (this.subEditor != null) {
+                            this.subEditor.gotoLine(0, 0, true);
+                        }
                     }
                 }
             }
@@ -378,14 +405,72 @@ export default class App extends AppBase {
         ipcRenderer.send('saveLocalFile', 'hosts', this.txtSystemHosts);
     }
 
-    public onClickedHostsEdit(filename: string): void {
+    public onClickedCreateFile(): void {
+        this.$prompt(
+            '새로 만들 파일 이름을 입력 해주세요.<br/>특수문자는 입력하지 마셔요. 확장자애는 자동으로 .txt 가 붙습니다.',
+            '빈 파일 만들기',
+            { dangerouslyUseHTMLString: true }
+        )
+            .then((result: any) => {
+                result.value = result.value.trim();
+                if (result.value != '') {
+                    ipcRenderer.send('createFile', `${result.value}.txt`);
+                }
+            })
+            .catch(() => {});
+    }
+
+    public onClickedEdit(filename: string): void {
         this.rowClickEvent = false;
 
         this.txtCommonFilename = filename;
         ipcRenderer.send('readLocalFile', this.txtCommonFilename);
 
-        this.txtDialogTitle = this.txtCommonFilename + ' 파일 수정';
+        this.txtDialogTitle = `${this.txtCommonFilename} 파일 수정`;
         this.isVisibleDialog = true;
+    }
+
+    public onClickedRename(filename: string): void {
+        this.rowClickEvent = false;
+
+        let ext = filename.split('.');
+        let renameFilename = '';
+        for (let i = 0; i < ext.length - 1; i++) {
+            if (i > 0) {
+                renameFilename += '.';
+            }
+            renameFilename += ext[i];
+        }
+
+        this.$prompt(
+            '새로 만들 파일 이름을 입력 해주세요.<br/>특수문자는 입력하지 마셔요. 확장자애는 자동으로 .txt 가 붙습니다.',
+            '파일 이름 변경',
+            { dangerouslyUseHTMLString: true, inputValue: renameFilename }
+        )
+            .then((result: any) => {
+                result.value = result.value.trim();
+                if (result.value != '') {
+                    ipcRenderer.send(
+                        'renameFile',
+                        filename,
+                        `${result.value}.txt`
+                    );
+                }
+            })
+            .catch(() => {});
+    }
+
+    public onClickedDelete(filename: string): void {
+        this.rowClickEvent = false;
+
+        this.$confirm(`${filename} 파일을 삭제하시겠습니까?`, `파일 삭제`, {
+            dangerouslyUseHTMLString: true,
+            type: 'warning'
+        })
+            .then((result: any) => {
+                ipcRenderer.send('deleteFile', filename);
+            })
+            .catch(() => {});
     }
 
     public onClickedCommonHostsSave(): void {
@@ -395,6 +480,12 @@ export default class App extends AppBase {
             this.txtCommonFilename,
             this.txtCommonHosts
         );
+
+        this.onClickedCommonHostsClose();
+    }
+
+    public onClickedCommonHostsClose(): void {
+        this.txtCommonFilename = '';
         this.isVisibleDialog = false;
     }
 }
@@ -444,13 +535,12 @@ body {
     padding: 2px 0 !important;
 }
 
-.el-button--mini {
-    padding: 3px 11px !important;
-    font-size: 8px !important;
+.el-button + .el-button {
+    margin-left: 2px !important;
 }
 
 .el-button--mini {
-    padding: 3px 11px !important;
+    padding: 3px 9px !important;
     font-size: 8px !important;
 }
 
