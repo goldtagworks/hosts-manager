@@ -130,7 +130,17 @@ class AppMain {
             path.join(__dirname, iconPath)
         );
         this.tray = new Tray(trayIcon.resize({ width: 16, height: 16 }));
-        this.tray.setToolTip('Hosts Manager');
+        this.setTitle(this.ipc.trayTitle);
+    }
+
+    public setTitle(title: string): void {
+        if (this.tray != null) {
+            if (title == '') {
+                title = 'Hosts Manager';
+            }
+            this.tray.setToolTip(title);
+            this.tray.setTitle(title);
+        }
     }
 }
 

@@ -17,22 +17,20 @@ export default class IPCMainHostsManager {
     public filenameCommon: string = 'COMMON.txt';
     public appMain: AppMain;
     public trayMenu: Menu | null = null;
+    public trayTitle: string = '';
 
-    public lodingServerData: boolean = false;
-    public lodingCommonData: boolean = false;
     public trayServerList = Helper.readConfig('server.list.config.json');
     public trayCommonList = Helper.readConfig('common.list.config.json');
 
     public constructor(appMain: AppMain) {
         this.appMain = appMain;
 
-        let filename = '';
         for (let item of this.trayServerList) {
             if (item.checked == true) {
-                filename = item.label;
+                this.trayTitle = item.label;
             }
         }
-        this.saveHostsList(filename, this.trayCommonList, false);
+        this.saveHostsList(this.trayTitle, this.trayCommonList, false);
 
         this.initIPC();
     }
@@ -85,7 +83,6 @@ export default class IPCMainHostsManager {
         );
 
         ipcMain.on('readServerHostsList', (event: Electron.Event) => {
-            this.lodingServerData = false;
             this.getServerFile(this.filenameList)
                 .then((response: string) => {
                     response = response.replace(/\r/gi, '');
@@ -112,7 +109,6 @@ export default class IPCMainHostsManager {
                         'onClickedServerMenuItem'
                     );
 
-                    this.lodingServerData = true;
                     this.createTrayMenu();
                     event.sender.send('onReadServerHostsListComplete', list);
                 })
@@ -290,22 +286,20 @@ export default class IPCMainHostsManager {
     }
 
     private createTrayMenu(): void {
-        if (this.lodingServerData == false || this.lodingCommonData == false) {
-            return;
-        }
-
         if (this.appMain.tray != null) {
             let menu = new Menu();
 
             for (let item of this.trayServerList) {
                 menu.append(new MenuItem(item));
             }
+
             if (
                 this.trayServerList.length > 0 &&
                 this.trayCommonList.length > 0
             ) {
                 menu.append(new MenuItem({ type: 'separator' }));
             }
+
             for (let item of this.trayCommonList) {
                 menu.append(new MenuItem(item));
             }
@@ -381,7 +375,10 @@ export default class IPCMainHostsManager {
         sendFlag: boolean
     ): void {
         let result: string = '';
+
         if (filename != '') {
+            this.trayTitle = filename;
+
             this.getServerFile(`${filename}.txt`)
                 .then((response: string) => {
                     result += response;
@@ -404,15 +401,24 @@ export default class IPCMainHostsManager {
                     this.ipcMainSend('errorNotify', err);
                 });
         } else {
+            this.trayTitle = '';
+
+            for (let item of list) {
+                if (item.checked == true) {
+                    this.trayTitle = item.label;
+                    break;
+                }
+            }
             result += this.appendLocalFile(list);
 
             this.saveHosts('hosts', result, sendFlag);
         }
+
+        this.appMain.setTitle(this.trayTitle);
     }
 
     private readCommonHostsList(event: Electron.Event | null): void {
         if (fs.existsSync(Helper.getHomePath())) {
-            this.lodingCommonData = false;
             let items = fs.readdirSync(Helper.getHomePath());
 
             // 목록구성
@@ -440,7 +446,6 @@ export default class IPCMainHostsManager {
                 'onClickedCommonMenuItem'
             );
 
-            this.lodingCommonData = true;
             this.createTrayMenu();
 
             if (event != null) {

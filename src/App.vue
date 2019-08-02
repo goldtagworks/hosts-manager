@@ -3,16 +3,16 @@
         <el-container direction="horizontal">
             <el-aside width="300px">
                 <div class="hosts-header">
-                    <span>서버 호스트 목록</span
-                    ><span style="width:80px; float:right;"
-                        ><el-button
+                    <span>서버 호스트 목록</span>
+                    <span style="width:80px; float:right;">
+                        <el-button
                             size="mini"
                             type="primary"
                             plain
                             @click="onClickedRefresh"
                             >Refresh</el-button
-                        ></span
-                    >
+                        >
+                    </span>
                 </div>
                 <el-table
                     :show-header="false"
@@ -55,8 +55,7 @@
                             type="primary"
                             plain
                             @click="onClickedCreateFile"
-                        >
-                            New File</el-button
+                            >New File</el-button
                         >
                     </span>
                 </div>
@@ -126,6 +125,7 @@
                         language="ini"
                         theme="vs-dark"
                         :options="options"
+                        @editorDidMount="onSystemEditorMounted"
                         style="width:100%; height:100%"
                     />
                 </el-main>
@@ -143,6 +143,7 @@
                     language="ini"
                     theme="vs-dark"
                     :options="options"
+                    @editorDidMount="onCommonEditorMounted"
                     style="width:100%; height:100%"
                 />
             </div>
@@ -171,7 +172,7 @@ import { Vue, Component } from 'vue-property-decorator';
 import AppBase from '@/app-base';
 
 import mousetrap from 'mousetrap';
-import MonacoEditor from 'vue-monaco';
+import { MonacoEditor, KeyMod, KeyCode } from 'vue-monaco';
 
 import { ElMenu } from 'element-ui/types/menu';
 
@@ -204,6 +205,18 @@ export default class App extends AppBase {
     ];
 
     public options: any = { selectOnLineNumbers: false, automaticLayout: true };
+
+    public onSystemEditorMounted(editor: any): void {
+        editor.addCommand([KeyMod.CtrlCmd | KeyCode.KEY_S], () => {
+            alert();
+        });
+    }
+
+    public onCommonEditorMounted(editor: any): void {
+        editor.addCommand([KeyMod.CtrlCmd | KeyCode.KEY_S], () => {
+            alert();
+        });
+    }
 
     public created(): void {
         mousetrap.bind(['command+s', 'ctrl+s'], () => {
@@ -241,7 +254,7 @@ export default class App extends AppBase {
                     this.isSaved = false;
 
                     // 체크된 로컬파일이 수정된 경우 hosts 에 반영
-                    this.changeSaveCommonHosts(this.txtCommonFilename);
+                    this.changeSaveCommonHosts(filename);
 
                     return;
                 }
