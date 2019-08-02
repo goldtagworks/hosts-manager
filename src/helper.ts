@@ -4,6 +4,18 @@ import path from 'path';
 import { stringify } from 'querystring';
 
 export default class Helper {
+    public static appendLF(): string {
+        switch (process.platform) {
+            case 'darwin': {
+                return '\n';
+            }
+            case 'win32': {
+                return '\r\n';
+            }
+        }
+        return '';
+    }
+
     public static getFilename(fullpath: string): string {
         let shash = '\\';
         switch (process.platform) {

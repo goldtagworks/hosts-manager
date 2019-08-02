@@ -120,17 +120,15 @@
                 </el-table>
             </el-aside>
             <el-container direction="vertical">
-                <el-main
-                    ><editor
+                <el-main>
+                    <monaco-editor
                         v-model="txtSystemHosts"
-                        @init="onMainEditorInit"
-                        lang="ini"
-                        theme="dracula"
-                        width="100%"
-                        height="100%"
+                        language="ini"
+                        theme="vs-dark"
                         :options="options"
-                    ></editor
-                ></el-main>
+                        style="width:100%; height:100%"
+                    />
+                </el-main>
             </el-container>
         </el-container>
         <el-dialog
@@ -140,15 +138,13 @@
             :close-on-click-modal="false"
         >
             <div style="height:350px;">
-                <editor
+                <monaco-editor
                     v-model="txtCommonHosts"
-                    @init="onSubEditorInit"
-                    lang="ini"
-                    theme="dracula"
-                    width="100%"
-                    height="100%"
+                    language="ini"
+                    theme="vs-dark"
                     :options="options"
-                ></editor>
+                    style="width:100%; height:100%"
+                />
             </div>
             <span slot="footer" class="dialog-footer">
                 <el-button
@@ -175,15 +171,13 @@ import { Vue, Component } from 'vue-property-decorator';
 import AppBase from '@/app-base';
 
 import mousetrap from 'mousetrap';
-import editor from 'vue2-ace-editor';
-import 'brace/mode/ini';
-import 'brace/theme/dracula';
+import MonacoEditor from 'vue-monaco';
 
 import { ElMenu } from 'element-ui/types/menu';
 
 @Component({
     components: {
-        editor
+        MonacoEditor
     }
 })
 export default class App extends AppBase {
@@ -196,8 +190,6 @@ export default class App extends AppBase {
     public txtCommonFilename: string = '';
     public listCommonHosts: any[] = [];
 
-    public mainEditor: any = null;
-    public subEditor: any = null;
     public isVisibleDialog: boolean = false;
     public rowClickEvent: boolean = true;
     public isSaved: boolean = false;
@@ -211,38 +203,7 @@ export default class App extends AppBase {
         }
     ];
 
-    // public options: any = { fontFamily: 'tahoma', fontSize: '10pt' };
-    public options: any = { fontSize: '10pt' };
-
-    public onMainEditorInit(editor: any): void {
-        this.mainEditor = editor;
-
-        editor.commands.addCommand({
-            name: 'save',
-            bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
-            exec: (editor: any) => {
-                this.onClickedSystemHostsSave();
-            }
-        });
-
-        editor.setShowPrintMargin(false);
-        editor.focus();
-    }
-
-    public onSubEditorInit(editor: any): void {
-        this.subEditor = editor;
-
-        editor.commands.addCommand({
-            name: 'save',
-            bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
-            exec: (editor: any) => {
-                this.onClickedCommonHostsSave();
-            }
-        });
-
-        editor.setShowPrintMargin(false);
-        editor.focus();
-    }
+    public options: any = { selectOnLineNumbers: false, automaticLayout: true };
 
     public created(): void {
         mousetrap.bind(['command+s', 'ctrl+s'], () => {
@@ -286,18 +247,12 @@ export default class App extends AppBase {
                 }
                 if (filename == 'hosts') {
                     this.txtSystemHosts = data;
-                    if (this.mainEditor != null) {
-                        this.mainEditor.gotoLine(0, 0, true);
-                    }
                 } else {
                     // 체크된 로컬파일이 수정된 경우 hosts 에 반영
                     this.changeSaveCommonHosts(filename);
 
                     if (this.txtCommonFilename == filename) {
                         this.txtCommonHosts = data;
-                        if (this.subEditor != null) {
-                            this.subEditor.gotoLine(0, 0, true);
-                        }
                     }
                 }
             }

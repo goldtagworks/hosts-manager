@@ -160,7 +160,7 @@ export default class IPCMainHostsManager {
                 let data = fs.readFileSync(fullpath);
 
                 result += iconv.decode(data, 'euc-kr');
-                result += '\r\n\r\n';
+                result += Helper.appendLF();
             }
         }
 
@@ -385,12 +385,12 @@ export default class IPCMainHostsManager {
             this.getServerFile(`${filename}.txt`)
                 .then((response: string) => {
                     result += response;
-                    result += '\r\n\r\n';
+                    result += Helper.appendLF();
 
                     this.getServerFile(this.filenameCommon)
                         .then((response: string) => {
                             result += response;
-                            result += '\r\n\r\n';
+                            result += Helper.appendLF();
 
                             result += this.appendLocalFile(list);
 
