@@ -1,6 +1,6 @@
 {
     "name": "HostsManager",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "author": "Kakao Corp.",
     "description": "멜론 Hosts Manager",
     "private": true,
