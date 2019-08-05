@@ -304,8 +304,10 @@ export default class IPCMainHostsManager {
                 menu.append(new MenuItem(item));
             }
 
-            this.trayMenu = menu;
-            this.appMain.tray.setContextMenu(this.trayMenu);
+            if (menu.items.length > 0) {
+                this.trayMenu = menu;
+                this.appMain.tray.setContextMenu(this.trayMenu);
+            }
         }
     }
 

@@ -40,7 +40,7 @@
                     >
                         <template slot-scope="scope">
                             <span
-                                width="194px"
+                                width="100%"
                                 class="hosts-column"
                                 v-text="scope.row[item.prop]"
                             ></span>
@@ -85,13 +85,13 @@
                     >
                         <template slot-scope="scope">
                             <span
-                                width="134px"
+                                width="100%"
                                 class="hosts-column"
                                 v-text="scope.row[item.prop]"
                             ></span>
                         </template>
                     </el-table-column>
-                    <el-table-column width="125px">
+                    <el-table-column width="130px">
                         <template slot-scope="scope">
                             <el-button
                                 size="mini"
