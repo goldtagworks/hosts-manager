@@ -172,7 +172,8 @@ import { Vue, Component } from 'vue-property-decorator';
 import AppBase from '@/app-base';
 
 import mousetrap from 'mousetrap';
-import { MonacoEditor, KeyMod, KeyCode } from 'vue-monaco';
+import MonacoEditor from 'vue-monaco';
+import { KeyMod, KeyCode } from 'monaco-editor';
 
 import { ElMenu } from 'element-ui/types/menu';
 
@@ -208,14 +209,16 @@ export default class App extends AppBase {
 
     public onSystemEditorMounted(editor: any): void {
         editor.addCommand([KeyMod.CtrlCmd | KeyCode.KEY_S], () => {
-            alert();
+            this.onClickedSystemHostsSave();
         });
+        editor.focus();
     }
 
     public onCommonEditorMounted(editor: any): void {
         editor.addCommand([KeyMod.CtrlCmd | KeyCode.KEY_S], () => {
-            alert();
+            this.onClickedCommonHostsSave();
         });
+        editor.focus();
     }
 
     public created(): void {
