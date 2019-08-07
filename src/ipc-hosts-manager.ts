@@ -15,6 +15,7 @@ export default class IPCMainHostsManager {
     // public prefixServerURL: string = 'http://127.0.0.1/hosts/';
     public filenameList: string = 'serverinfo.txt';
     public filenameCommon: string = 'COMMON.txt';
+    public filenameITCommon: string = 'IT_COMMON.txt';
     public appMain: AppMain;
     public trayMenu: Menu | null = null;
     public trayTitle: string = '';
@@ -391,7 +392,18 @@ export default class IPCMainHostsManager {
                             result += response;
                             result += Helper.appendLF();
 
-                            result += this.appendLocalFile(list);
+                            this.getServerFile(this.filenameITCommon)
+                                .then((response: string) => {
+                                    result += response;
+                                    result += Helper.appendLF();
+
+                                    result += this.appendLocalFile(list);
+
+                                    this.saveHosts('hosts', result, sendFlag);
+                                })
+                                .catch((err: any) => {
+                                    this.ipcMainSend('errorNotify', err);
+                                });
 
                             this.saveHosts('hosts', result, sendFlag);
                         })
@@ -411,7 +423,30 @@ export default class IPCMainHostsManager {
                     break;
                 }
             }
-            result += this.appendLocalFile(list);
+
+            this.getServerFile(this.filenameCommon)
+                .then((response: string) => {
+                    result += response;
+                    result += Helper.appendLF();
+
+                    this.getServerFile(this.filenameITCommon)
+                        .then((response: string) => {
+                            result += response;
+                            result += Helper.appendLF();
+
+                            result += this.appendLocalFile(list);
+
+                            this.saveHosts('hosts', result, sendFlag);
+                        })
+                        .catch((err: any) => {
+                            this.ipcMainSend('errorNotify', err);
+                        });
+
+                    this.saveHosts('hosts', result, sendFlag);
+                })
+                .catch((err: any) => {
+                    this.ipcMainSend('errorNotify', err);
+                });
 
             this.saveHosts('hosts', result, sendFlag);
         }
