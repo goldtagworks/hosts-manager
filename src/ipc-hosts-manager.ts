@@ -372,48 +372,21 @@ export default class IPCMainHostsManager {
         });
     }
 
-    private saveHostsList(
+    private async saveHostsList(
         filename: string,
         list: any,
         sendFlag: boolean
-    ): void {
+    ): Promise<void> {
         let result: string = '';
 
         if (filename != '') {
             this.trayTitle = filename;
 
-            this.getServerFile(`${filename}.txt`)
-                .then((response: string) => {
-                    result += response;
-                    result += Helper.appendLF();
-
-                    this.getServerFile(this.filenameCommon)
-                        .then((response: string) => {
-                            result += response;
-                            result += Helper.appendLF();
-
-                            this.getServerFile(this.filenameITCommon)
-                                .then((response: string) => {
-                                    result += response;
-                                    result += Helper.appendLF();
-
-                                    result += this.appendLocalFile(list);
-
-                                    this.saveHosts('hosts', result, sendFlag);
-                                })
-                                .catch((err: any) => {
-                                    this.ipcMainSend('errorNotify', err);
-                                });
-
-                            this.saveHosts('hosts', result, sendFlag);
-                        })
-                        .catch((err: any) => {
-                            this.ipcMainSend('errorNotify', err);
-                        });
-                })
-                .catch((err: any) => {
-                    this.ipcMainSend('errorNotify', err);
-                });
+            result += await this.getServerFile(`${filename}.txt`);
+            result += await this.getServerFile(this.filenameCommon);
+            result += await this.getServerFile(this.filenameITCommon);
+            result += this.appendLocalFile(list);
+            this.saveHosts('hosts', result, sendFlag);
         } else {
             this.trayTitle = '';
 
@@ -424,29 +397,9 @@ export default class IPCMainHostsManager {
                 }
             }
 
-            this.getServerFile(this.filenameCommon)
-                .then((response: string) => {
-                    result += response;
-                    result += Helper.appendLF();
-
-                    this.getServerFile(this.filenameITCommon)
-                        .then((response: string) => {
-                            result += response;
-                            result += Helper.appendLF();
-
-                            result += this.appendLocalFile(list);
-
-                            this.saveHosts('hosts', result, sendFlag);
-                        })
-                        .catch((err: any) => {
-                            this.ipcMainSend('errorNotify', err);
-                        });
-
-                    this.saveHosts('hosts', result, sendFlag);
-                })
-                .catch((err: any) => {
-                    this.ipcMainSend('errorNotify', err);
-                });
+            result += await this.getServerFile(this.filenameCommon);
+            result += await this.getServerFile(this.filenameITCommon);
+            result += this.appendLocalFile(list);
 
             this.saveHosts('hosts', result, sendFlag);
         }
@@ -503,8 +456,13 @@ export default class IPCMainHostsManager {
             url: this.prefixServerURL + filename,
             responseType: 'arraybuffer'
         });
-        let contents = Buffer.from(response.data);
 
-        return iconv.decode(contents, 'euc-kr');
+        let result: string = '';
+        if (response.status == 200) {
+            let contents = Buffer.from(response.data);
+            result += iconv.decode(contents, 'euc-kr');
+            result += Helper.appendLF();
+        }
+        return result;
     }
 }
