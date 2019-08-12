@@ -11,7 +11,7 @@ import { Checkbox } from 'element-ui';
 
 export default class IPCMainHostsManager {
     public prefixServerURL: string =
-        'http://devenv.melon.com/hostsmanager_config2/';
+        'http://hostmanager.melon.devel.kakao.com/hosts-manager-config2';
     // public prefixServerURL: string = 'http://127.0.0.1/hosts/';
     public filenameList: string = 'serverinfo.txt';
     public filenameCommon: string = 'COMMON.txt';
