@@ -382,10 +382,10 @@ export default class IPCMainHostsManager {
         if (filename != '') {
             this.trayTitle = filename;
 
+            result += this.appendLocalFile(list);
             result += await this.getServerFile(`${filename}.txt`);
             result += await this.getServerFile(this.filenameCommon);
             result += await this.getServerFile(this.filenameITCommon);
-            result += this.appendLocalFile(list);
             this.saveHosts('hosts', result, sendFlag);
         } else {
             this.trayTitle = '';
@@ -397,9 +397,9 @@ export default class IPCMainHostsManager {
                 }
             }
 
+            result += this.appendLocalFile(list);
             result += await this.getServerFile(this.filenameCommon);
             result += await this.getServerFile(this.filenameITCommon);
-            result += this.appendLocalFile(list);
 
             this.saveHosts('hosts', result, sendFlag);
         }
