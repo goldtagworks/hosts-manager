@@ -5,6 +5,7 @@ import {
     createProtocol,
     installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
+import * as Splashscreen from '@trodi/electron-splashscreen';
 
 import IPCMainHostsManager from './ipc-hosts-manager';
 import path from 'path';
@@ -82,15 +83,33 @@ class AppMain {
             return;
         }
 
+        let templateUrl: string = '';
+        if (process.env.WEBPACK_DEV_SERVER_URL) {
+            templateUrl = `${__dirname}\\..\\static\\splash.html`;
+        } else {
+            templateUrl = `${__dirname}\\static\\splash.html`;
+        }
+
         // Create the browser window.
-        this.win = new BrowserWindow({
-            width: 1200,
-            height: 600,
-            minWidth: 800,
-            minHeight: 450,
-            webPreferences: {
-                nodeIntegration: true,
-                webSecurity: false
+        this.win = Splashscreen.initSplashScreen({
+            windowOpts: {
+                width: 1200,
+                height: 600,
+                minWidth: 800,
+                minHeight: 450,
+                useContentSize: true,
+                enableLargerThanScreen: true,
+                webPreferences: {
+                    nodeIntegration: true,
+                    nodeIntegrationInWorker: false,
+                    webviewTag: true,
+                    webSecurity: false
+                }
+            },
+            templateUrl: templateUrl,
+            splashScreenOpts: {
+                width: 500,
+                height: 300
             }
         });
 

@@ -1,3 +1,7 @@
+const os = require('os');
+const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+
 // vue.config.js
 module.exports = {
     pluginOptions: {
@@ -8,5 +12,20 @@ module.exports = {
             // List them all here so that VCP Electron Builder can find them
             nodeModulesPath: ['../../node_modules', './node_modules']
         }
+    },
+    runtimeCompiler: true,
+    configureWebpack: {
+        node: {
+            process: true
+        },
+
+        plugins: [
+            new CopyWebpackPlugin([
+                {
+                    from: 'static',
+                    to: 'static'
+                }
+            ])
+        ]
     }
 };
